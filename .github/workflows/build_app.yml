@@ -53,7 +53,7 @@ jobs:
       - name: 3. 设置 Flutter 环境
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x' 
+          flutter-version: '3.38.x' 
           channel: 'stable'
 
       - name: 4. 获取依赖 (flutter pub get)
