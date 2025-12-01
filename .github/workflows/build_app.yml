@@ -1,0 +1,79 @@
+name: 🚀 跨平台应用构建 (可选手持/标签)
+
+on:
+  # 允许在 GitHub Actions UI 中手动触发工作流
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: '选择编译目标平台'
+        required: true
+        type: choice
+        default: macos
+        options:
+          - macos
+          - windows
+          - linux
+      git_tag:
+        description: 'Git 标签或分支 (例如: dev_v1.11.2)'
+        required: true
+        default: dev_v1.11.2 # 使用您当前所在的标签作为默认值
+        type: string
+
+jobs:
+  build:
+    # 核心：根据用户输入 platform 来选择合适的运行环境 (runner)
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || inputs.platform == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+
+    steps:
+      - name: 1. 检出代码 (Checkout Code)
+        uses: actions/checkout@v4
+        with:
+          # 使用用户输入指定的标签或分支进行检出
+          ref: ${{ github.event.inputs.git_tag }}
+
+      - name: 2. 设置 Flutter 环境
+        uses: subosito/flutter-action@v2
+        with:
+          # 请根据您的项目 pubspec.yaml 兼容性选择 Flutter 版本
+          flutter-version: '3.19.x' 
+          channel: 'stable'
+
+      - name: 3. 获取依赖 (flutter pub get)
+        # 假设 Flutter 项目位于 simple_live_app 子目录
+        run: flutter pub get
+        working-directory: ./simple_live_app 
+
+      - name: 4. 编译 macOS Release 版本
+        if: ${{ inputs.platform == 'macos' }}
+        run: flutter build macos --release
+        working-directory: ./simple_live_app
+      
+      - name: 4. 编译 Windows Release 版本
+        if: ${{ inputs.platform == 'windows' }}
+        run: flutter build windows --release
+        working-directory: ./simple_live_app
+
+      - name: 4. 编译 Linux Release 版本
+        if: ${{ inputs.platform == 'linux' }}
+        run: flutter build linux --release
+        working-directory: ./simple_live_app
+
+      - name: 5. 确定构建产物路径
+        id: build_path
+        run: |
+          BUILD_DIR=""
+          # 根据平台设置构建路径，用于 artifacts 上传
+          case ${{ inputs.platform }} in
+            macos) BUILD_DIR="./simple_live_app/build/macos/Build/Products/Release/";;
+            windows) BUILD_DIR="./simple_live_app/build/windows/runner/Release/";;
+            linux) BUILD_DIR="./simple_live_app/build/linux/x64/release/bundle/";;
+          esac
+          echo "artifact_path=$BUILD_DIR" >> $GITHUB_OUTPUT # 设置输出变量
+
+      - name: 6. 上传构建产物 (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifact 名称：macOS-dev_v1.11.2
+          name: ${{ inputs.platform }}-${{ github.event.inputs.git_tag }}
+          path: ${{ steps.build_path.outputs.artifact_path }}
+          retention-days: 7 # 保留 7 天
